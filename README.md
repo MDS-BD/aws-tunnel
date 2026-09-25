@@ -13,6 +13,8 @@ aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 
 aws-tunnel apigateway --sign    # pick private API stage, proxy on http://localhost:8080, SigV4-signed
 aws-tunnel elasticache --iam --user app  # pick cache, print redis-cli command and IAM token
 aws-tunnel shell                # pick instance, interactive shell (replaces ssmw start)
+aws-tunnel tunnel --local 18085 --remote 8085 --host service.example.com
+                                # localhost:18085 -> host:8085 through the instance (replaces gossm/ssmw fwdrem)
 ```
 
 ## Install
@@ -32,6 +34,7 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 | `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
 | `apigateway` | `apigateway:GET` on `/restapis` and their stages, private APIs only | none, or `--sign` for `AWS_IAM` methods (`execute-api:Invoke`) |
 | `elasticache` | `elasticache:DescribeReplicationGroups` + `DescribeServerlessCaches` | AUTH token / RBAC password, or `--iam` token (`elasticache:Connect`) |
+| `tunnel` | instance picker only; `--host` omitted reaches a port on the instance | none, plain TCP |
 | `shell` | instance picker only | `ssm:StartSession` on the instance |
 | `rds` | `rds:DescribeDBClusters` (writer + reader endpoints) + `DescribeDBInstances` (standalone) | database password, or `--iam` token (`rds-db:connect`) |
 

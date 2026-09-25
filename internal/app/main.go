@@ -52,6 +52,7 @@ type CLI struct {
 	Opensearch  OpensearchCmd  `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
 	RDS         RDSCmd         `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
 	Shell       ShellCmd       `cmd:"" help:"Interactive shell on an SSM-managed instance."`
+	Tunnel      TunnelCmd      `cmd:"" help:"Forward a local port to any host:port the instance can reach (like gossm fwdrem)."`
 }
 
 // Session is what every subcommand runs with: AWS config and the per-account cache.
