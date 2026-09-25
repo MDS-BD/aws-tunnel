@@ -10,6 +10,14 @@ opensearch-proxy -r                   # ignore cache, reload domains and instanc
 opensearch-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 ```
 
+## Install
+
+```sh
+export HOMEBREW_GITHUB_API_TOKEN=<token able to read MDS-BD repos>
+brew tap MDS-BD/tools git@github.com:MDS-BD/homebrew-tools.git
+brew install --cask opensearch-proxy
+```
+
 ## How it works
 
 1. Credentials come from the standard AWS chain (env, `--profile`, SSO...). `sts:GetCallerIdentity` gives the account ID.
@@ -30,3 +38,27 @@ opensearch-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 ```sh
 go test ./... -cover
 ```
+
+## Release
+
+Push a `v*` tag: the `release` workflow runs GoReleaser, which builds darwin/linux × amd64/arm64, publishes the GitHub
+release and pushes the cask to [MDS-BD/homebrew-tools](https://github.com/MDS-BD/homebrew-tools).
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Repository secrets:
+
+| Secret | Required | Content |
+| ------ | -------- | ------- |
+| `HOMEBREW_TAP_GITHUB_TOKEN` | yes | Fine-grained token, *Contents: read & write* on `MDS-BD/homebrew-tools` |
+| `MACOS_SIGN_P12` | no | base64 of the *Developer ID Application* certificate exported as `.p12` |
+| `MACOS_SIGN_PASSWORD` | no | password of the `.p12` |
+| `MACOS_NOTARY_KEY` | no | base64 of the App Store Connect API key (`.p8`) |
+| `MACOS_NOTARY_KEY_ID` | no | ID of that key |
+| `MACOS_NOTARY_ISSUER_ID` | no | issuer UUID of that key |
+
+Without the `MACOS_*` secrets the darwin binaries ship unsigned; the cask strips the quarantine flag on install.
+
+Local dry run: `goreleaser release --snapshot --clean --skip=publish`.
