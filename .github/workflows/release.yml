@@ -24,8 +24,8 @@ jobs:
       - uses: actions/create-github-app-token@v3
         id: tap-token
         with:
-          client-id: ${{ vars.HOMEBREW_TAP_APP_CLIENT_ID }}
-          private-key: ${{ secrets.HOMEBREW_TAP_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.HOMEBREW_RELEASER_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_RELEASER_APP_PRIVATE_KEY }}
           owner: MDS-BD
           repositories: homebrew-tools
           permission-contents: write
