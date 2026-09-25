@@ -91,12 +91,28 @@ Repository secrets:
 
 | Secret | Required | Content |
 | ------ | -------- | ------- |
-| `HOMEBREW_TAP_GITHUB_TOKEN` | yes | Fine-grained token, *Contents: read & write* on `MDS-BD/homebrew-tools` |
+| `HOMEBREW_TAP_APP_PRIVATE_KEY` | yes | Private key (`.pem`) of the tap GitHub App, see below |
 | `MACOS_SIGN_P12` | no | base64 of the *Developer ID Application* certificate exported as `.p12` |
 | `MACOS_SIGN_PASSWORD` | no | password of the `.p12`; omit it when the file has none |
 | `MACOS_NOTARY_KEY` | no | base64 of the App Store Connect API key (`.p8`) |
 | `MACOS_NOTARY_KEY_ID` | no | ID of that key |
 | `MACOS_NOTARY_ISSUER_ID` | no | issuer UUID of that key |
+
+Plus the repository **variable** `HOMEBREW_TAP_APP_CLIENT_ID`: the Client ID of that app (not secret).
+
+The tap is pushed with a GitHub App instead of a personal token: tokens last one hour and can only write to
+`MDS-BD/homebrew-tools`. One-time setup (org admin):
+
+1. Organization settings → Developer settings → GitHub Apps → *New GitHub App*. Any name and homepage URL; untick
+   *Webhook → Active*; *Repository permissions → Contents: Read and write*; *Only on this account*.
+2. On the app page, copy the **Client ID**, then *Generate a private key* (downloads a `.pem`).
+3. *Install App* → MDS-BD → *Only select repositories* → `homebrew-tools`.
+4. Store both in this repo:
+   ```sh
+   gh variable set HOMEBREW_TAP_APP_CLIENT_ID -R MDS-BD/aws-tunnel --body <client-id>
+   gh secret set HOMEBREW_TAP_APP_PRIVATE_KEY -R MDS-BD/aws-tunnel < ./app-name.private-key.pem
+   ```
+   then delete the local `.pem`.
 
 Without the `MACOS_*` secrets the darwin binaries ship unsigned; the cask strips the quarantine flag on install.
 
