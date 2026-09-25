@@ -93,7 +93,7 @@ Repository secrets:
 | ------ | -------- | ------- |
 | `HOMEBREW_TAP_GITHUB_TOKEN` | yes | Fine-grained token, *Contents: read & write* on `MDS-BD/homebrew-tools` |
 | `MACOS_SIGN_P12` | no | base64 of the *Developer ID Application* certificate exported as `.p12` |
-| `MACOS_SIGN_PASSWORD` | no | password of the `.p12` |
+| `MACOS_SIGN_PASSWORD` | no | password of the `.p12`; omit it when the file has none |
 | `MACOS_NOTARY_KEY` | no | base64 of the App Store Connect API key (`.p8`) |
 | `MACOS_NOTARY_KEY_ID` | no | ID of that key |
 | `MACOS_NOTARY_ISSUER_ID` | no | issuer UUID of that key |

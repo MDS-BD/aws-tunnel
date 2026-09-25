@@ -34,7 +34,8 @@ notarize:
         - aws-tunnel
       sign:
         certificate: "{{ .Env.MACOS_SIGN_P12 }}"
-        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+        # Optional: a .p12 exported without a password needs no MACOS_SIGN_PASSWORD secret.
+        password: '{{ envOrDefault "MACOS_SIGN_PASSWORD" "" }}'
       notarize:
         issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
         key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
