@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-project_name: opensearch-proxy
+project_name: aws-tunnel
 
 before:
   hooks:
@@ -9,9 +9,9 @@ before:
     - go test ./...
 
 builds:
-  - id: opensearch-proxy
+  - id: aws-tunnel
     main: ./cmd
-    binary: opensearch-proxy
+    binary: aws-tunnel
     env:
       - CGO_ENABLED=0
     goos:
@@ -31,7 +31,7 @@ notarize:
   macos:
     - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
       ids:
-        - opensearch-proxy
+        - aws-tunnel
       sign:
         certificate: "{{ .Env.MACOS_SIGN_P12 }}"
         password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
@@ -51,7 +51,7 @@ archives:
 release:
   github:
     owner: MDS-BD
-    name: opensearch-proxy
+    name: aws-tunnel
 
 checksum:
   name_template: checksums.txt
@@ -66,11 +66,11 @@ changelog:
       - "^chore:"
 
 homebrew_casks:
-  - name: opensearch-proxy
+  - name: aws-tunnel
     binaries:
-      - opensearch-proxy
-    homepage: https://github.com/MDS-BD/opensearch-proxy
-    description: SSM-tunnelled, SigV4-signing proxy to a private AWS OpenSearch domain
+      - aws-tunnel
+    homepage: https://github.com/MDS-BD/aws-tunnel
+    description: SSM tunnels to private AWS services (OpenSearch, ...) without bastions or plugins
     repository:
       owner: MDS-BD
       name: homebrew-tools
@@ -80,7 +80,7 @@ homebrew_casks:
     # Release assets live in a private repo: download them through the GitHub API with HOMEBREW_GITHUB_API_TOKEN.
     # Homebrew hides that variable while the cask loads, so it is read by the strategy at download time.
     url:
-      template: "https://github.com/MDS-BD/opensearch-proxy/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+      template: "https://github.com/MDS-BD/aws-tunnel/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
       using: GitHubPrivateRepositoryReleaseDownloadStrategy
     custom_block: |
       require "download_strategy"
@@ -125,5 +125,5 @@ homebrew_casks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/opensearch-proxy"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aws-tunnel"]
           end

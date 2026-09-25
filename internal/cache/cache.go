@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/renameio/v2"
 
-	"github.com/MDS-BD/opensearch-proxy/internal/cloud"
+	"github.com/MDS-BD/aws-tunnel/internal/cloud"
 )
 
 // schemaVersion invalidates cached listings when their shape changes; usage history survives.
@@ -58,7 +58,7 @@ func Open(accountID, region string) (*Store, error) {
 
 	s := &Store{
 		data: data{Usage: map[string]Usage{}},
-		path: filepath.Join(dir, "opensearch-proxy", accountID+"-"+region+".json"),
+		path: filepath.Join(dir, "aws-tunnel", accountID+"-"+region+".json"),
 	}
 
 	raw, err := os.ReadFile(s.path)

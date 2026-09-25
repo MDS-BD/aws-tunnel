@@ -1,4 +1,4 @@
-module github.com/MDS-BD/opensearch-proxy
+module github.com/MDS-BD/aws-tunnel
 
 go 1.26.0
 

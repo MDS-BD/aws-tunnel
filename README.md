@@ -1,13 +1,13 @@
-# opensearch-proxy
+# aws-tunnel
 
-SSM-tunnelled, SigV4-signing proxy to a private OpenSearch domain. Pure Go: no `aws` CLI,
+SSM tunnels to private AWS services, starting with a SigV4-signing proxy to OpenSearch. Pure Go: no `aws` CLI,
 no `session-manager-plugin`, no Docker, no `fzf`.
 
 ```sh
-go build -o bin/opensearch-proxy ./cmd
-opensearch-proxy                      # pick domain, pick SSM instance, proxy on http://localhost:8080
-opensearch-proxy -r                   # ignore cache, reload domains and instances from AWS
-opensearch-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
+go build -o bin/aws-tunnel ./cmd
+aws-tunnel                      # pick domain, pick SSM instance, proxy on http://localhost:8080
+aws-tunnel -r                   # ignore cache, reload domains and instances from AWS
+aws-tunnel --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 ```
 
 ## Install
@@ -15,7 +15,7 @@ opensearch-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 ```sh
 export HOMEBREW_GITHUB_API_TOKEN=<token able to read MDS-BD repos>
 brew tap MDS-BD/tools git@github.com:MDS-BD/homebrew-tools.git
-brew install --cask opensearch-proxy
+brew install --cask aws-tunnel
 ```
 
 ## How it works
@@ -23,7 +23,7 @@ brew install --cask opensearch-proxy
 1. Credentials come from the standard AWS chain (env, `--profile`, SSO...). `sts:GetCallerIdentity` gives the account ID.
 2. Domains (`opensearch:ListDomainNames` + `DescribeDomains`) and SSM-online instances (`ssm:DescribeInstanceInformation`,
    names from `ec2:DescribeTags`) are cached
-   per account + region in `$(os.UserCacheDir)/opensearch-proxy/<account>-<region>.json`, refreshed after `--cache-ttl` (24h) or with `-r`.
+   per account + region in `$(os.UserCacheDir)/aws-tunnel/<account>-<region>.json`, refreshed after `--cache-ttl` (24h) or with `-r`.
 3. Pickers rank entries by frecency: every pick adds 1 to a score that halves every 14 days, so often *and* recently
    used entries come first.
 4. An SSM `AWS-StartPortForwardingSessionToRemoteHost` session is opened in-process

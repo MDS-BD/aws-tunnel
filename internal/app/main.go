@@ -18,11 +18,11 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/zap"
 
-	"github.com/MDS-BD/opensearch-proxy/internal/cache"
-	"github.com/MDS-BD/opensearch-proxy/internal/cloud"
-	"github.com/MDS-BD/opensearch-proxy/internal/picker"
-	"github.com/MDS-BD/opensearch-proxy/internal/proxy"
-	"github.com/MDS-BD/opensearch-proxy/internal/tunnel"
+	"github.com/MDS-BD/aws-tunnel/internal/cache"
+	"github.com/MDS-BD/aws-tunnel/internal/cloud"
+	"github.com/MDS-BD/aws-tunnel/internal/picker"
+	"github.com/MDS-BD/aws-tunnel/internal/proxy"
+	"github.com/MDS-BD/aws-tunnel/internal/tunnel"
 )
 
 const (
@@ -32,15 +32,15 @@ const (
 )
 
 type CLI struct {
-	CacheTTL   time.Duration    `default:"24h" env:"OPENSEARCH_PROXY_CACHE_TTL" help:"How long cached domain/instance lists stay fresh."`
-	Host       string           `env:"OPENSEARCH_PROXY_HOST" help:"OpenSearch endpoint; skips the domain picker."`
+	CacheTTL   time.Duration    `default:"24h" env:"AWS_TUNNEL_CACHE_TTL" help:"How long cached domain/instance lists stay fresh."`
+	Host       string           `env:"AWS_TUNNEL_HOST" help:"OpenSearch endpoint; skips the domain picker."`
 	LocalPort  int              `default:"0" env:"LOCAL_PORT" help:"Local port for the SSM tunnel (0 = random)." name:"local"`
 	Profile    string           `env:"AWS_PROFILE" help:"AWS shared config profile."`
 	ProxyPort  int              `default:"8080" env:"PROXY_PORT" help:"Port of the SigV4 signing proxy."`
 	Refresh    bool             `help:"Ignore the cache and fetch domains and instances from AWS." short:"r"`
 	Region     string           `default:"eu-west-1" env:"REGION,AWS_REGION" help:"AWS region."`
 	RemotePort int              `default:"443" env:"REMOTE_PORT" help:"Port of the OpenSearch endpoint." name:"remote"`
-	Target     string           `env:"OPENSEARCH_PROXY_TARGET" help:"EC2 instance ID to tunnel through; skips the instance picker." short:"t"`
+	Target     string           `env:"AWS_TUNNEL_TARGET" help:"EC2 instance ID to tunnel through; skips the instance picker." short:"t"`
 	Verbose    bool             `help:"Verbose logging." short:"v"`
 	Version    kong.VersionFlag `help:"Print the version and exit."`
 }
@@ -48,8 +48,8 @@ type CLI struct {
 func Main(version string) {
 	var cli CLI
 	kong.Parse(&cli,
-		kong.Name("opensearch-proxy"),
-		kong.Description("SSM-tunnelled, SigV4-signing proxy to a private OpenSearch domain."),
+		kong.Name("aws-tunnel"),
+		kong.Description("SSM tunnels to private AWS services, no bastion, CLI or plugin needed."),
 		kong.Vars{"version": version},
 	)
 
@@ -62,7 +62,7 @@ func Main(version string) {
 		if errors.Is(err, picker.ErrAborted) || errors.Is(err, context.Canceled) {
 			os.Exit(130)
 		}
-		log.Error().Err(err).Msg("opensearch-proxy failed")
+		log.Error().Err(err).Msg("aws-tunnel failed")
 		os.Exit(1)
 	}
 }
