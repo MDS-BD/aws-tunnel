@@ -12,6 +12,7 @@ aws-tunnel rds                  # pick database + instance, print a psql/mysql c
 aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 10 minutes
 aws-tunnel apigateway --sign    # pick private API stage, proxy on http://localhost:8080, SigV4-signed
 aws-tunnel elasticache --iam --user app  # pick cache, print redis-cli command and IAM token
+aws-tunnel shell                # pick instance, interactive shell (replaces ssmw start)
 ```
 
 ## Install
@@ -31,6 +32,7 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 | `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
 | `apigateway` | `apigateway:GET` on `/restapis` and their stages, private APIs only | none, or `--sign` for `AWS_IAM` methods (`execute-api:Invoke`) |
 | `elasticache` | `elasticache:DescribeReplicationGroups` + `DescribeServerlessCaches` | AUTH token / RBAC password, or `--iam` token (`elasticache:Connect`) |
+| `shell` | instance picker only | `ssm:StartSession` on the instance |
 | `rds` | `rds:DescribeDBClusters` (writer + reader endpoints) + `DescribeDBInstances` (standalone) | database password, or `--iam` token (`rds-db:connect`) |
 
 API Gateway: the proxy calls `https://<api-id>.execute-api.<region>.amazonaws.com/<stage>`, which resolves to the

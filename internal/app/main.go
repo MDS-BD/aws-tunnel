@@ -51,6 +51,7 @@ type CLI struct {
 	ElastiCache ElastiCacheCmd `cmd:"" help:"Tunnel to a private ElastiCache Redis/Valkey cache, optionally with IAM auth tokens." name:"elasticache"`
 	Opensearch  OpensearchCmd  `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
 	RDS         RDSCmd         `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
+	Shell       ShellCmd       `cmd:"" help:"Interactive shell on an SSM-managed instance."`
 }
 
 // Session is what every subcommand runs with: AWS config and the per-account cache.
