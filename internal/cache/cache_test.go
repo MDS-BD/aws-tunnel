@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/marcoreni/aws-opensearch-proxy/internal/cloud"
+	"github.com/MDS-BD/opensearch-proxy/internal/cloud"
 )
 
 type item struct{ ID string }

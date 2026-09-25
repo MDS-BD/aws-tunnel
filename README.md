@@ -1,13 +1,13 @@
-# es-proxy
+# opensearch-proxy
 
 SSM-tunnelled, SigV4-signing proxy to a private OpenSearch domain. Pure Go: no `aws` CLI,
 no `session-manager-plugin`, no Docker, no `fzf`.
 
 ```sh
-go build -o bin/es-proxy ./cmd
-es-proxy                      # pick domain, pick SSM instance, proxy on http://localhost:8080
-es-proxy -r                   # ignore cache, reload domains and instances from AWS
-es-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
+go build -o bin/opensearch-proxy ./cmd
+opensearch-proxy                      # pick domain, pick SSM instance, proxy on http://localhost:8080
+opensearch-proxy -r                   # ignore cache, reload domains and instances from AWS
+opensearch-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 ```
 
 ## How it works
@@ -15,7 +15,7 @@ es-proxy --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
 1. Credentials come from the standard AWS chain (env, `--profile`, SSO...). `sts:GetCallerIdentity` gives the account ID.
 2. Domains (`opensearch:ListDomainNames` + `DescribeDomains`) and SSM-online instances (`ssm:DescribeInstanceInformation`,
    names from `ec2:DescribeTags`) are cached
-   per account + region in `$(os.UserCacheDir)/es-proxy/<account>-<region>.json`, refreshed after `--cache-ttl` (24h) or with `-r`.
+   per account + region in `$(os.UserCacheDir)/opensearch-proxy/<account>-<region>.json`, refreshed after `--cache-ttl` (24h) or with `-r`.
 3. Pickers rank entries by frecency: every pick adds 1 to a score that halves every 14 days, so often *and* recently
    used entries come first.
 4. An SSM `AWS-StartPortForwardingSessionToRemoteHost` session is opened in-process

@@ -1,4 +1,4 @@
-module github.com/marcoreni/aws-opensearch-proxy
+module github.com/MDS-BD/opensearch-proxy
 
 go 1.26.0
 

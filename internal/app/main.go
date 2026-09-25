@@ -18,11 +18,11 @@ import (
 	"github.com/rs/zerolog"
 	"go.uber.org/zap"
 
-	"github.com/marcoreni/aws-opensearch-proxy/internal/cache"
-	"github.com/marcoreni/aws-opensearch-proxy/internal/cloud"
-	"github.com/marcoreni/aws-opensearch-proxy/internal/picker"
-	"github.com/marcoreni/aws-opensearch-proxy/internal/proxy"
-	"github.com/marcoreni/aws-opensearch-proxy/internal/tunnel"
+	"github.com/MDS-BD/opensearch-proxy/internal/cache"
+	"github.com/MDS-BD/opensearch-proxy/internal/cloud"
+	"github.com/MDS-BD/opensearch-proxy/internal/picker"
+	"github.com/MDS-BD/opensearch-proxy/internal/proxy"
+	"github.com/MDS-BD/opensearch-proxy/internal/tunnel"
 )
 
 const (
@@ -32,22 +32,22 @@ const (
 )
 
 type CLI struct {
-	CacheTTL   time.Duration `default:"24h" env:"ES_PROXY_CACHE_TTL" help:"How long cached domain/instance lists stay fresh."`
-	Host       string        `env:"ES_PROXY_HOST" help:"OpenSearch endpoint; skips the domain picker."`
+	CacheTTL   time.Duration `default:"24h" env:"OPENSEARCH_PROXY_CACHE_TTL" help:"How long cached domain/instance lists stay fresh."`
+	Host       string        `env:"OPENSEARCH_PROXY_HOST" help:"OpenSearch endpoint; skips the domain picker."`
 	LocalPort  int           `default:"0" env:"LOCAL_PORT" help:"Local port for the SSM tunnel (0 = random)." name:"local"`
 	Profile    string        `env:"AWS_PROFILE" help:"AWS shared config profile."`
 	ProxyPort  int           `default:"8080" env:"PROXY_PORT" help:"Port of the SigV4 signing proxy."`
 	Refresh    bool          `help:"Ignore the cache and fetch domains and instances from AWS." short:"r"`
 	Region     string        `default:"eu-west-1" env:"REGION,AWS_REGION" help:"AWS region."`
 	RemotePort int           `default:"443" env:"REMOTE_PORT" help:"Port of the OpenSearch endpoint." name:"remote"`
-	Target     string        `env:"ES_PROXY_TARGET" help:"EC2 instance ID to tunnel through; skips the instance picker." short:"t"`
+	Target     string        `env:"OPENSEARCH_PROXY_TARGET" help:"EC2 instance ID to tunnel through; skips the instance picker." short:"t"`
 	Verbose    bool          `help:"Verbose logging." short:"v"`
 }
 
 func Main() {
 	var cli CLI
 	kong.Parse(&cli,
-		kong.Name("es-proxy"),
+		kong.Name("opensearch-proxy"),
 		kong.Description("SSM-tunnelled, SigV4-signing proxy to a private OpenSearch domain."),
 	)
 
@@ -60,7 +60,7 @@ func Main() {
 		if errors.Is(err, picker.ErrAborted) || errors.Is(err, context.Canceled) {
 			os.Exit(130)
 		}
-		log.Error().Err(err).Msg("es-proxy failed")
+		log.Error().Err(err).Msg("opensearch-proxy failed")
 		os.Exit(1)
 	}
 }
@@ -132,7 +132,7 @@ func pickHost(ctx context.Context, cfg aws.Config, store *cache.Store, cli CLI) 
 	domainKey := func(d cloud.Domain) string { return domainKeyPrefix + d.Endpoint }
 	cache.Rank(store, domains, domainKey, func(d cloud.Domain) string { return d.Name })
 
-	d, err := picker.Pick(domains, "es host", header("select a target domain", store.Domains().FetchedAt),
+	d, err := picker.Pick(domains, "domain", header("select a target domain", store.Domains().FetchedAt),
 		func(d cloud.Domain) string { return d.Name + "  (" + d.EngineVersion + ")" })
 	if err != nil {
 		return "", err
