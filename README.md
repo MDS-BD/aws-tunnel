@@ -8,6 +8,8 @@ go build -o bin/aws-tunnel ./cmd
 aws-tunnel opensearch           # pick domain, pick SSM instance, proxy on http://localhost:8080
 aws-tunnel -r opensearch        # ignore cache, reload domains and instances from AWS
 aws-tunnel -t i-0123456789abcdef0 opensearch --host vpc-x.eu-west-1.es.amazonaws.com
+aws-tunnel rds                  # pick database + instance, print a psql/mysql command
+aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 10 minutes
 ```
 
 ## Install
@@ -19,6 +21,18 @@ brew install --cask aws-tunnel
 ```
 
 Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every subcommand; run `aws-tunnel <command> --help` for the rest.
+
+## Services
+
+| Command | Lists | Auth |
+| ------- | ----- | ---- |
+| `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
+| `rds` | `rds:DescribeDBClusters` (writer + reader endpoints) + `DescribeDBInstances` (standalone) | database password, or `--iam` token (`rds-db:connect`) |
+
+RDS TLS: the client connects to `localhost`, so certificate host verification fails. Use `sslmode=require` /
+`--ssl-mode=REQUIRED` (encrypted, not verified), or map the RDS host to `127.0.0.1` in `/etc/hosts` and verify
+against the [RDS CA bundle](https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) with `--local` set
+to the database port.
 
 ## How it works
 

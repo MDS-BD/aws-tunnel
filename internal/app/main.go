@@ -44,6 +44,7 @@ type CLI struct {
 	Globals
 
 	Opensearch OpensearchCmd `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
+	RDS        RDSCmd        `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
 }
 
 // Session is what every subcommand runs with: AWS config and the per-account cache.
