@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/rs/zerolog"
@@ -16,11 +15,7 @@ import (
 	"github.com/MDS-BD/aws-tunnel/internal/picker"
 )
 
-const (
-	databaseKeyPrefix = "rds:"
-	// IAM auth tokens are valid for 15 minutes: print a fresh one well before that.
-	iamTokenRefresh = 10 * time.Minute
-)
+const databaseKeyPrefix = "rds:"
 
 type RDSCmd struct {
 	Host string `env:"AWS_TUNNEL_RDS_HOST" help:"Database endpoint; skips the database picker (requires --port)."`
@@ -56,43 +51,17 @@ func (c *RDSCmd) Run(ctx context.Context, s *Session) error {
 		log.Info().Msg("connect with: " + hint)
 	}
 
-	var refresh <-chan time.Time
-	if c.IAM {
-		if !db.IAMAuth {
-			log.Warn().Msg("IAM database authentication looks disabled on this database: the token will be rejected")
-		}
-		if err := c.printToken(ctx, s, db, user); err != nil {
-			return err
-		}
-		ticker := time.NewTicker(iamTokenRefresh)
-		defer ticker.Stop()
-		refresh = ticker.C
+	if !c.IAM {
+		return s.WaitTunnel(ctx, tunnelDone, nil)
 	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info().Msg("shutting down…")
-			return nil
-		case err := <-tunnelDone:
-			return fmt.Errorf("ssm tunnel closed: %w", err)
-		case <-refresh:
-			if err := c.printToken(ctx, s, db, user); err != nil {
-				log.Warn().Err(err).Msg("could not refresh IAM token")
-			}
-		}
+	if !db.IAMAuth {
+		log.Warn().Msg("IAM database authentication looks disabled on this database: the token will be rejected")
 	}
-}
-
-// printToken signs a token for the real endpoint: RDS validates it against its own host name, not localhost.
-func (c *RDSCmd) printToken(ctx context.Context, s *Session, db cloud.Database, user string) error {
+	// The token is signed for the real endpoint: RDS validates it against its own host name, not localhost.
 	endpoint := net.JoinHostPort(db.Host, strconv.Itoa(db.Port))
-	token, err := auth.BuildAuthToken(ctx, endpoint, s.Cfg.Region, user, s.Cfg.Credentials)
-	if err != nil {
-		return fmt.Errorf("build IAM auth token: %w", err)
-	}
-	zerolog.Ctx(ctx).Info().Msg("IAM token (valid 15 minutes, new connections only):\n" + token)
-	return nil
+	return s.WaitTunnel(ctx, tunnelDone, func(ctx context.Context) (string, error) {
+		return auth.BuildAuthToken(ctx, endpoint, s.Cfg.Region, user, s.Cfg.Credentials)
+	})
 }
 
 func (c *RDSCmd) pickDatabase(ctx context.Context, s *Session) (cloud.Database, error) {

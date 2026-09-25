@@ -26,6 +26,8 @@ import (
 )
 
 const (
+	// IAM auth tokens are valid for 15 minutes: print a fresh one well before that.
+	iamTokenRefresh   = 10 * time.Minute
 	instanceKeyPrefix = "instance:"
 	shutdownTimeout   = 5 * time.Second
 )
@@ -45,9 +47,10 @@ type Globals struct {
 type CLI struct {
 	Globals
 
-	APIGateway APIGatewayCmd `cmd:"" help:"Local proxy to a private API Gateway REST API, optionally SigV4-signed." name:"apigateway"`
-	Opensearch OpensearchCmd `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
-	RDS        RDSCmd        `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
+	APIGateway  APIGatewayCmd  `cmd:"" help:"Local proxy to a private API Gateway REST API, optionally SigV4-signed." name:"apigateway"`
+	ElastiCache ElastiCacheCmd `cmd:"" help:"Tunnel to a private ElastiCache Redis/Valkey cache, optionally with IAM auth tokens." name:"elasticache"`
+	Opensearch  OpensearchCmd  `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
+	RDS         RDSCmd         `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
 }
 
 // Session is what every subcommand runs with: AWS config and the per-account cache.
@@ -228,6 +231,44 @@ func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, pro
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
 	return err
+}
+
+// WaitTunnel blocks until ctx ends or the tunnel closes. When token is set it prints a fresh IAM token now and
+// every iamTokenRefresh, since tokens expire after 15 minutes and only matter for new connections.
+func (s *Session) WaitTunnel(ctx context.Context, tunnelDone <-chan error, token func(context.Context) (string, error)) error {
+	log := zerolog.Ctx(ctx)
+	printToken := func() error {
+		t, err := token(ctx)
+		if err != nil {
+			return fmt.Errorf("build IAM auth token: %w", err)
+		}
+		log.Info().Msg("IAM token (valid 15 minutes, new connections only):\n" + t)
+		return nil
+	}
+
+	var refresh <-chan time.Time
+	if token != nil {
+		if err := printToken(); err != nil {
+			return err
+		}
+		ticker := time.NewTicker(iamTokenRefresh)
+		defer ticker.Stop()
+		refresh = ticker.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("shutting down…")
+			return nil
+		case err := <-tunnelDone:
+			return fmt.Errorf("ssm tunnel closed: %w", err)
+		case <-refresh:
+			if err := printToken(); err != nil {
+				log.Warn().Err(err).Msg("could not refresh IAM token")
+			}
+		}
+	}
 }
 
 func instanceLabel(i cloud.Instance) string {

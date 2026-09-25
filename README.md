@@ -11,6 +11,7 @@ aws-tunnel -t i-0123456789abcdef0 opensearch --host vpc-x.eu-west-1.es.amazonaws
 aws-tunnel rds                  # pick database + instance, print a psql/mysql command
 aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 10 minutes
 aws-tunnel apigateway --sign    # pick private API stage, proxy on http://localhost:8080, SigV4-signed
+aws-tunnel elasticache --iam --user app  # pick cache, print redis-cli command and IAM token
 ```
 
 ## Install
@@ -29,11 +30,16 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 | ------- | ----- | ---- |
 | `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
 | `apigateway` | `apigateway:GET` on `/restapis` and their stages, private APIs only | none, or `--sign` for `AWS_IAM` methods (`execute-api:Invoke`) |
+| `elasticache` | `elasticache:DescribeReplicationGroups` + `DescribeServerlessCaches` | AUTH token / RBAC password, or `--iam` token (`elasticache:Connect`) |
 | `rds` | `rds:DescribeDBClusters` (writer + reader endpoints) + `DescribeDBInstances` (standalone) | database password, or `--iam` token (`rds-db:connect`) |
 
 API Gateway: the proxy calls `https://<api-id>.execute-api.<region>.amazonaws.com/<stage>`, which resolves to the
 `execute-api` VPC endpoint only when that endpoint has private DNS enabled. The API resource policy must also allow
 the VPC endpoint.
+
+ElastiCache: cluster-mode-enabled groups answer `MOVED`/`ASK` with node addresses the single tunnel does not forward,
+so only single-slot commands without cluster redirects work (plain `redis-cli`, no `-c`). Serverless caches and
+cluster-mode-disabled groups work fully. TLS is kept but not host-verified (`--tls --insecure --sni <host>`).
 
 RDS TLS: the client connects to `localhost`, so certificate host verification fails. Use `sslmode=require` /
 `--ssl-mode=REQUIRED` (encrypted, not verified), or map the RDS host to `127.0.0.1` in `/etc/hosts` and verify
