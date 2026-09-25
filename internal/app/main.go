@@ -48,6 +48,7 @@ type CLI struct {
 	Globals
 
 	APIGateway  APIGatewayCmd  `cmd:"" help:"Local proxy to a private API Gateway REST API, optionally SigV4-signed." name:"apigateway"`
+	EKS         EKSCmd         `cmd:"" help:"kubectl access to a private EKS API endpoint, no exec plugin needed." name:"eks"`
 	ElastiCache ElastiCacheCmd `cmd:"" help:"Tunnel to a private ElastiCache Redis/Valkey cache, optionally with IAM auth tokens." name:"elasticache"`
 	Opensearch  OpensearchCmd  `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
 	RDS         RDSCmd         `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`

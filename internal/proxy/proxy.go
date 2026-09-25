@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,10 +17,14 @@ import (
 )
 
 type Options struct {
+	// BearerToken, when set, replaces the Authorization header with "Bearer <token>" on every request.
+	BearerToken func(context.Context) (string, error)
 	// Host is the real service host name, used for Host, SNI and the signature.
 	Host string
 	// PathPrefix is prepended to every request path, e.g. an API Gateway stage.
 	PathPrefix string
+	// RootCAs verifies the service certificate; nil uses the system pool.
+	RootCAs *x509.CertPool
 	// Service is the SigV4 signing name ("es", "execute-api"...); empty forwards requests unsigned.
 	Service string
 	// TunnelAddr is where connections are dialled instead of Host.
@@ -31,7 +36,7 @@ type Options struct {
 // Requests keep the real host name for Host, SNI and signature, only the TCP dial is redirected to the
 // tunnel: the TLS certificate is verified and the signature matches without any host override.
 func New(cfg aws.Config, opts Options) (http.Handler, error) {
-	return newHandler(cfg, opts, &tls.Config{ServerName: opts.Host})
+	return newHandler(cfg, opts, &tls.Config{RootCAs: opts.RootCAs, ServerName: opts.Host})
 }
 
 func newHandler(cfg aws.Config, opts Options, tlsConfig *tls.Config) (http.Handler, error) {
@@ -49,6 +54,9 @@ func newHandler(cfg aws.Config, opts Options, tlsConfig *tls.Config) (http.Handl
 			return nil, fmt.Errorf("create signer: %w", err)
 		}
 		roundTripper = &signingTransport{base: transport, signer: s}
+	}
+	if opts.BearerToken != nil {
+		roundTripper = &bearerTransport{base: roundTripper, token: opts.BearerToken}
 	}
 
 	target := &url.URL{Scheme: "https", Host: opts.Host, Path: opts.PathPrefix}
@@ -79,5 +87,19 @@ func (t *signingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err := t.signer.SignRequest(r); err != nil {
 		return nil, fmt.Errorf("sign request: %w", err)
 	}
+	return t.base.RoundTrip(r)
+}
+
+type bearerTransport struct {
+	base  http.RoundTripper
+	token func(context.Context) (string, error)
+}
+
+func (t *bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	token, err := t.token(r.Context())
+	if err != nil {
+		return nil, fmt.Errorf("get bearer token: %w", err)
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
 	return t.base.RoundTrip(r)
 }

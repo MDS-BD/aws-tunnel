@@ -12,6 +12,7 @@ aws-tunnel rds                  # pick database + instance, print a psql/mysql c
 aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 10 minutes
 aws-tunnel apigateway --sign    # pick private API stage, proxy on http://localhost:8080, SigV4-signed
 aws-tunnel elasticache --iam --user app  # pick cache, print redis-cli command and IAM token
+aws-tunnel eks                  # pick private cluster, then: export KUBECONFIG=<printed path>; kubectl get pods
 aws-tunnel shell                # pick instance, interactive shell (replaces ssmw start)
 aws-tunnel tunnel --local 18085 --remote 8085 --host service.example.com
                                 # localhost:18085 -> host:8085 through the instance (replaces gossm/ssmw fwdrem)
@@ -33,6 +34,7 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 | ------- | ----- | ---- |
 | `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
 | `apigateway` | `apigateway:GET` on `/restapis` and their stages, private APIs only | none, or `--sign` for `AWS_IAM` methods (`execute-api:Invoke`) |
+| `eks` | `eks:ListClusters` + `DescribeCluster`, private-endpoint clusters only | local proxy adds the IAM bearer token; your identity needs an EKS access entry (or `aws-auth` mapping) |
 | `elasticache` | `elasticache:DescribeReplicationGroups` + `DescribeServerlessCaches` | AUTH token / RBAC password, or `--iam` token (`elasticache:Connect`) |
 | `tunnel` | instance picker only; `--host` omitted reaches a port on the instance | none, plain TCP |
 | `shell` | instance picker only | `ssm:StartSession` on the instance |
@@ -41,6 +43,10 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 API Gateway: the proxy calls `https://<api-id>.execute-api.<region>.amazonaws.com/<stage>`, which resolves to the
 `execute-api` VPC endpoint only when that endpoint has private DNS enabled. The API resource policy must also allow
 the VPC endpoint.
+
+EKS: the proxy verifies the API server against the cluster CA and injects the token, so the printed kubeconfig
+points at `http://localhost:8443` with no credentials and no `aws eks get-token` exec plugin. `exec`, `attach`,
+`port-forward`, `logs -f` and watches work through it. The kubeconfig is deleted on exit.
 
 ElastiCache: cluster-mode-enabled groups answer `MOVED`/`ASK` with node addresses the single tunnel does not forward,
 so only single-slot commands without cluster redirects work (plain `redis-cli`, no `-c`). Serverless caches and
