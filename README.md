@@ -5,9 +5,9 @@ no `session-manager-plugin`, no Docker, no `fzf`.
 
 ```sh
 go build -o bin/aws-tunnel ./cmd
-aws-tunnel                      # pick domain, pick SSM instance, proxy on http://localhost:8080
-aws-tunnel -r                   # ignore cache, reload domains and instances from AWS
-aws-tunnel --host vpc-x.eu-west-1.es.amazonaws.com -t i-0123456789abcdef0
+aws-tunnel opensearch           # pick domain, pick SSM instance, proxy on http://localhost:8080
+aws-tunnel -r opensearch        # ignore cache, reload domains and instances from AWS
+aws-tunnel -t i-0123456789abcdef0 opensearch --host vpc-x.eu-west-1.es.amazonaws.com
 ```
 
 ## Install
@@ -17,6 +17,8 @@ export HOMEBREW_GITHUB_API_TOKEN=<token able to read MDS-BD repos>
 brew tap MDS-BD/tools git@github.com:MDS-BD/homebrew-tools.git
 brew install --cask aws-tunnel
 ```
+
+Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every subcommand; run `aws-tunnel <command> --help` for the rest.
 
 ## How it works
 

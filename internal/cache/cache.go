@@ -14,12 +14,10 @@ import (
 	"time"
 
 	"github.com/google/renameio/v2"
-
-	"github.com/MDS-BD/aws-tunnel/internal/cloud"
 )
 
-// schemaVersion invalidates cached listings when their shape changes; usage history survives.
-const schemaVersion = 2
+// schemaVersion invalidates every cached listing when the file layout changes; usage history survives.
+const schemaVersion = 3
 
 // usageHalfLife controls how fast past picks fade: a pick made one half-life ago weighs half as much as one made now.
 const usageHalfLife = 14 * 24 * time.Hour
@@ -38,16 +36,17 @@ type Usage struct {
 }
 
 type data struct {
-	Version   int                   `json:"version"`
-	Domains   Entry[cloud.Domain]   `json:"domains"`
-	Instances Entry[cloud.Instance] `json:"instances"`
-	Usage     map[string]Usage      `json:"usage"`
+	Listings map[string]json.RawMessage `json:"listings"`
+	Usage    map[string]Usage           `json:"usage"`
+	Version  int                        `json:"version"`
 }
 
 // Store holds the cache of a single AWS account + region.
 type Store struct {
 	data data
-	path string
+	// entries holds the decoded listings handed out by Listing, re-encoded on Save.
+	entries map[string]any
+	path    string
 }
 
 func Open(accountID, region string) (*Store, error) {
@@ -57,26 +56,26 @@ func Open(accountID, region string) (*Store, error) {
 	}
 
 	s := &Store{
-		data: data{Usage: map[string]Usage{}},
-		path: filepath.Join(dir, "aws-tunnel", accountID+"-"+region+".json"),
+		entries: map[string]any{},
+		path:    filepath.Join(dir, "aws-tunnel", accountID+"-"+region+".json"),
 	}
 
 	raw, err := os.ReadFile(s.path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return s, nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("read cache: %w", err)
 	}
-	if err := json.Unmarshal(raw, &s.data); err != nil {
+	if err == nil && json.Unmarshal(raw, &s.data) != nil {
 		// A corrupt cache is not fatal: start over, it gets rebuilt from AWS.
-		return &Store{data: data{Usage: map[string]Usage{}}, path: s.path}, nil
+		s.data = data{}
+	}
+	if s.data.Version != schemaVersion {
+		s.data.Listings = nil
+	}
+	if s.data.Listings == nil {
+		s.data.Listings = map[string]json.RawMessage{}
 	}
 	if s.data.Usage == nil {
 		s.data.Usage = map[string]Usage{}
-	}
-	if s.data.Version != schemaVersion {
-		s.data = data{Usage: s.data.Usage}
 	}
 	return s, nil
 }
@@ -84,6 +83,13 @@ func Open(accountID, region string) (*Store, error) {
 func (s *Store) Path() string { return s.path }
 
 func (s *Store) Save() error {
+	for name, e := range s.entries {
+		raw, err := json.Marshal(e)
+		if err != nil {
+			return fmt.Errorf("marshal %s listing: %w", name, err)
+		}
+		s.data.Listings[name] = raw
+	}
 	s.data.Version = schemaVersion
 	raw, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
@@ -98,8 +104,19 @@ func (s *Store) Save() error {
 	return nil
 }
 
-func (s *Store) Domains() *Entry[cloud.Domain]     { return &s.data.Domains }
-func (s *Store) Instances() *Entry[cloud.Instance] { return &s.data.Instances }
+// Listing returns the cached listing called name. Every call for a name must use the same T.
+func Listing[T any](s *Store, name string) *Entry[T] {
+	if e, ok := s.entries[name].(*Entry[T]); ok {
+		return e
+	}
+	e := &Entry[T]{}
+	if raw, ok := s.data.Listings[name]; ok && json.Unmarshal(raw, e) != nil {
+		// Shape changed without a schemaVersion bump: treat it as never fetched.
+		*e = Entry[T]{}
+	}
+	s.entries[name] = e
+	return e
+}
 
 // Get returns the cached items, fetching them again when forced or older than maxAge.
 func Get[T any](ctx context.Context, e *Entry[T], maxAge time.Duration, force bool, fetch func(context.Context) ([]T, error)) ([]T, bool, error) {

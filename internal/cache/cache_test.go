@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/MDS-BD/aws-tunnel/internal/cloud"
 )
 
 type item struct{ ID string }
@@ -96,8 +94,7 @@ func TestRankDecay(t *testing.T) {
 
 func TestSaveOpen(t *testing.T) {
 	s := newStore(t)
-	s.Domains().Items = nil
-	s.Instances().FetchedAt = time.Now().Truncate(time.Second)
+	Listing[item](s, "items").FetchedAt = time.Now().Truncate(time.Second)
 	s.Touch("x")
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -110,8 +107,8 @@ func TestSaveOpen(t *testing.T) {
 	if reopened.data.Usage["x"].Count != 1 {
 		t.Errorf("usage not persisted: %v", reopened.data.Usage)
 	}
-	if !reopened.Instances().FetchedAt.Equal(s.Instances().FetchedAt) {
-		t.Errorf("fetchedAt mismatch: %v != %v", reopened.Instances().FetchedAt, s.Instances().FetchedAt)
+	if got, expected := Listing[item](reopened, "items").FetchedAt, Listing[item](s, "items").FetchedAt; !got.Equal(expected) {
+		t.Errorf("fetchedAt mismatch: %v != %v", got, expected)
 	}
 
 	other, err := Open("210987654321", "eu-west-1")
@@ -125,8 +122,9 @@ func TestSaveOpen(t *testing.T) {
 
 func TestOpenResetsOldSchema(t *testing.T) {
 	s := newStore(t)
-	s.Instances().Items = []cloud.Instance{{ID: "i-1"}}
-	s.Instances().FetchedAt = time.Now()
+	l := Listing[item](s, "items")
+	l.Items = []item{{ID: "i-1"}}
+	l.FetchedAt = time.Now()
 	s.Touch("x")
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -135,7 +133,7 @@ func TestOpenResetsOldSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile failed: %v", err)
 	}
-	old := strings.Replace(string(raw), `"version": 2`, `"version": 1`, 1)
+	old := strings.Replace(string(raw), `"version": 3`, `"version": 2`, 1)
 	if err := os.WriteFile(s.Path(), []byte(old), 0o600); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
@@ -144,10 +142,29 @@ func TestOpenResetsOldSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	if !reopened.Instances().FetchedAt.IsZero() || len(reopened.Instances().Items) != 0 {
-		t.Errorf("old listing must be dropped: %+v", reopened.Instances())
+	if got := Listing[item](reopened, "items"); !got.FetchedAt.IsZero() || len(got.Items) != 0 {
+		t.Errorf("old listing must be dropped: %+v", got)
 	}
 	if reopened.data.Usage["x"].Count != 1 {
 		t.Errorf("usage must survive a schema change: %v", reopened.data.Usage)
+	}
+}
+
+func TestListingsAreIndependent(t *testing.T) {
+	s := newStore(t)
+	Listing[item](s, "a").Items = []item{{ID: "1"}}
+	if err := s.Save(); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	reopened, err := Open("123456789012", "eu-west-1")
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	if !reflect.DeepEqual(Listing[item](reopened, "a").Items, []item{{ID: "1"}}) {
+		t.Errorf("listing a not persisted: %+v", Listing[item](reopened, "a"))
+	}
+	if len(Listing[item](reopened, "b").Items) != 0 {
+		t.Errorf("listing b must be empty: %+v", Listing[item](reopened, "b"))
 	}
 }
