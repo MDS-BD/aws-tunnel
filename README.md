@@ -10,6 +10,7 @@ aws-tunnel -r opensearch        # ignore cache, reload domains and instances fro
 aws-tunnel -t i-0123456789abcdef0 opensearch --host vpc-x.eu-west-1.es.amazonaws.com
 aws-tunnel rds                  # pick database + instance, print a psql/mysql command
 aws-tunnel rds --iam --user app # also print an IAM auth token, refreshed every 10 minutes
+aws-tunnel apigateway --sign    # pick private API stage, proxy on http://localhost:8080, SigV4-signed
 ```
 
 ## Install
@@ -27,7 +28,12 @@ Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every sub
 | Command | Lists | Auth |
 | ------- | ----- | ---- |
 | `opensearch` | `opensearch:ListDomainNames` + `DescribeDomains` | local proxy SigV4-signs every request |
+| `apigateway` | `apigateway:GET` on `/restapis` and their stages, private APIs only | none, or `--sign` for `AWS_IAM` methods (`execute-api:Invoke`) |
 | `rds` | `rds:DescribeDBClusters` (writer + reader endpoints) + `DescribeDBInstances` (standalone) | database password, or `--iam` token (`rds-db:connect`) |
+
+API Gateway: the proxy calls `https://<api-id>.execute-api.<region>.amazonaws.com/<stage>`, which resolves to the
+`execute-api` VPC endpoint only when that endpoint has private DNS enabled. The API resource policy must also allow
+the VPC endpoint.
 
 RDS TLS: the client connects to `localhost`, so certificate host verification fails. Use `sslmode=require` /
 `--ssl-mode=REQUIRED` (encrypted, not verified), or map the RDS host to `127.0.0.1` in `/etc/hosts` and verify

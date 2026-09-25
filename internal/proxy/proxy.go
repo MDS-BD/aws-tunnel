@@ -15,31 +15,49 @@ import (
 	"github.com/opensearch-project/opensearch-go/v4/signer/awsv2"
 )
 
-// New returns a reverse proxy that SigV4-signs every request for host and sends it through tunnelAddr.
-//
-// Requests keep the real domain name for Host, SNI and signature, only the TCP dial is redirected to the
-// tunnel: the TLS certificate is verified and the signature matches without any host override.
-func New(cfg aws.Config, host, tunnelAddr string) (http.Handler, error) {
-	return newHandler(cfg, host, tunnelAddr, &tls.Config{ServerName: host})
+type Options struct {
+	// Host is the real service host name, used for Host, SNI and the signature.
+	Host string
+	// PathPrefix is prepended to every request path, e.g. an API Gateway stage.
+	PathPrefix string
+	// Service is the SigV4 signing name ("es", "execute-api"...); empty forwards requests unsigned.
+	Service string
+	// TunnelAddr is where connections are dialled instead of Host.
+	TunnelAddr string
 }
 
-func newHandler(cfg aws.Config, host, tunnelAddr string, tlsConfig *tls.Config) (http.Handler, error) {
-	s, err := awsv2.NewSigner(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("create signer: %w", err)
-	}
+// New returns a reverse proxy to https://Host that sends every request through TunnelAddr.
+//
+// Requests keep the real host name for Host, SNI and signature, only the TCP dial is redirected to the
+// tunnel: the TLS certificate is verified and the signature matches without any host override.
+func New(cfg aws.Config, opts Options) (http.Handler, error) {
+	return newHandler(cfg, opts, &tls.Config{ServerName: opts.Host})
+}
 
+func newHandler(cfg aws.Config, opts Options, tlsConfig *tls.Config) (http.Handler, error) {
 	dialer := &net.Dialer{}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, tunnelAddr)
+		return dialer.DialContext(ctx, network, opts.TunnelAddr)
 	}
 	transport.TLSClientConfig = tlsConfig
 
-	target := &url.URL{Scheme: "https", Host: host}
+	var roundTripper http.RoundTripper = transport
+	if opts.Service != "" {
+		s, err := awsv2.NewSignerWithService(cfg, opts.Service)
+		if err != nil {
+			return nil, fmt.Errorf("create signer: %w", err)
+		}
+		roundTripper = &signingTransport{base: transport, signer: s}
+	}
+
+	target := &url.URL{Scheme: "https", Host: opts.Host, Path: opts.PathPrefix}
 	return &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(target)
+			if opts.Service == "" {
+				return
+			}
 			// Drop client-side auth so it cannot clash with our signature.
 			r.Out.Header.Del("Authorization")
 			for h := range r.Out.Header {
@@ -48,7 +66,7 @@ func newHandler(cfg aws.Config, host, tunnelAddr string, tlsConfig *tls.Config) 
 				}
 			}
 		},
-		Transport: &signingTransport{base: transport, signer: s},
+		Transport: roundTripper,
 	}, nil
 }
 

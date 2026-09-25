@@ -2,11 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -35,39 +30,7 @@ func (c *OpensearchCmd) Run(ctx context.Context, s *Session) error {
 	}
 	s.SaveCache(ctx)
 
-	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, host, c.RemotePort)
-	if err != nil {
-		return err
-	}
-
-	handler, err := proxy.New(s.Cfg, host, tunnelAddr)
-	if err != nil {
-		return err
-	}
-	srv := &http.Server{
-		Addr:              net.JoinHostPort("localhost", strconv.Itoa(c.ProxyPort)),
-		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	srvDone := make(chan error, 1)
-	go func() { srvDone <- srv.ListenAndServe() }()
-
-	log := zerolog.Ctx(ctx)
-	log.Info().Msg("SigV4 proxy ready on http://" + srv.Addr + " — Ctrl+C to stop")
-
-	select {
-	case <-ctx.Done():
-	case err = <-tunnelDone:
-		err = fmt.Errorf("ssm tunnel closed: %w", err)
-	case err = <-srvDone:
-		err = fmt.Errorf("proxy server: %w", err)
-	}
-
-	log.Info().Msg("shutting down…")
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
-	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
-	return err
+	return s.ServeProxy(ctx, target, c.RemotePort, c.ProxyPort, proxy.Options{Host: host, Service: "es"})
 }
 
 func (c *OpensearchCmd) pickDomain(ctx context.Context, s *Session) (string, error) {

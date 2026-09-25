@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/MDS-BD/aws-tunnel/internal/cache"
 	"github.com/MDS-BD/aws-tunnel/internal/cloud"
 	"github.com/MDS-BD/aws-tunnel/internal/picker"
+	"github.com/MDS-BD/aws-tunnel/internal/proxy"
 	"github.com/MDS-BD/aws-tunnel/internal/tunnel"
 )
 
@@ -43,6 +45,7 @@ type Globals struct {
 type CLI struct {
 	Globals
 
+	APIGateway APIGatewayCmd `cmd:"" help:"Local proxy to a private API Gateway REST API, optionally SigV4-signed." name:"apigateway"`
 	Opensearch OpensearchCmd `cmd:"" help:"SigV4-signing proxy to a private OpenSearch domain."`
 	RDS        RDSCmd        `cmd:"" help:"Tunnel to a private RDS/Aurora database, optionally with IAM auth tokens." name:"rds"`
 }
@@ -183,6 +186,48 @@ func (s *Session) OpenTunnel(ctx context.Context, target, host string, remotePor
 		return "", nil, err
 	}
 	return net.JoinHostPort("localhost", strconv.Itoa(localPort)), done, nil
+}
+
+// ServeProxy tunnels to opts.Host:remotePort through target and serves a local HTTP proxy to it until ctx ends.
+func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, proxyPort int, opts proxy.Options) error {
+	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, opts.Host, remotePort)
+	if err != nil {
+		return err
+	}
+
+	opts.TunnelAddr = tunnelAddr
+	handler, err := proxy.New(s.Cfg, opts)
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{
+		Addr:              net.JoinHostPort("localhost", strconv.Itoa(proxyPort)),
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	srvDone := make(chan error, 1)
+	go func() { srvDone <- srv.ListenAndServe() }()
+
+	log := zerolog.Ctx(ctx)
+	kind := "proxy"
+	if opts.Service != "" {
+		kind = "SigV4 proxy (" + opts.Service + ")"
+	}
+	log.Info().Msg(kind + " ready on http://" + srv.Addr + " — Ctrl+C to stop")
+
+	select {
+	case <-ctx.Done():
+	case err = <-tunnelDone:
+		err = fmt.Errorf("ssm tunnel closed: %w", err)
+	case err = <-srvDone:
+		err = fmt.Errorf("proxy server: %w", err)
+	}
+
+	log.Info().Msg("shutting down…")
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+	return err
 }
 
 func instanceLabel(i cloud.Instance) string {

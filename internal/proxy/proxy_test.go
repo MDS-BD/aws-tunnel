@@ -31,7 +31,8 @@ func TestProxySignsAndTunnels(t *testing.T) {
 	pool := x509.NewCertPool()
 	pool.AddCert(upstream.Certificate())
 	// httptest certificates are valid for "example.com": use it as the domain name.
-	handler, err := newHandler(cfg, "example.com", upstream.Listener.Addr().String(),
+	handler, err := newHandler(cfg,
+		Options{Host: "example.com", Service: "es", TunnelAddr: upstream.Listener.Addr().String()},
 		&tls.Config{RootCAs: pool, ServerName: "example.com"})
 	if err != nil {
 		t.Fatalf("newHandler failed: %v", err)
@@ -60,5 +61,36 @@ func TestProxySignsAndTunnels(t *testing.T) {
 	}
 	if got.Header.Get("X-Amz-Security-Token") != "token" {
 		t.Errorf("session token missing")
+	}
+}
+
+func TestProxyUnsignedWithPathPrefix(t *testing.T) {
+	var got *http.Request
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r
+	}))
+	defer upstream.Close()
+
+	pool := x509.NewCertPool()
+	pool.AddCert(upstream.Certificate())
+	handler, err := newHandler(aws.Config{},
+		Options{Host: "example.com", PathPrefix: "/prod", TunnelAddr: upstream.Listener.Addr().String()},
+		&tls.Config{RootCAs: pool, ServerName: "example.com"})
+	if err != nil {
+		t.Fatalf("newHandler failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080/users/1?x=y", nil)
+	req.Header.Set("Authorization", "Bearer abc")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got == nil {
+		t.Fatalf("request did not reach upstream")
+	}
+	if got.URL.RequestURI() != "/prod/users/1?x=y" {
+		t.Errorf("uri mismatch: %s", got.URL.RequestURI())
+	}
+	if got.Header.Get("Authorization") != "Bearer abc" {
+		t.Errorf("unsigned proxy must keep client auth, got %q", got.Header.Get("Authorization"))
 	}
 }
