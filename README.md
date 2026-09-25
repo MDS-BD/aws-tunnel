@@ -21,10 +21,13 @@ aws-tunnel tunnel --local 18085 --remote 8085 --host service.example.com
 ## Install
 
 ```sh
-export HOMEBREW_GITHUB_API_TOKEN=<token able to read MDS-BD repos>
+export HOMEBREW_GITHUB_API_TOKEN=$(gh auth token)   # any token able to read MDS-BD repos
 brew tap MDS-BD/tools git@github.com:MDS-BD/homebrew-tools.git
-brew install --cask aws-tunnel
+brew install --cask mds-bd/tools/aws-tunnel
 ```
+
+See [homebrew-tools](https://github.com/MDS-BD/homebrew-tools) for token options and the harmless ``postflight``
+deprecation warning.
 
 Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every subcommand; run `aws-tunnel <command> --help` for the rest.
 
