@@ -37,7 +37,7 @@ func (c *APIGatewayCmd) Run(ctx context.Context, s *Session) error {
 	if c.Sign {
 		opts.Service = "execute-api"
 	}
-	return s.ServeProxy(ctx, target, 443, c.ProxyPort, opts)
+	return s.ServeProxy(ctx, target, 443, c.ProxyPort, opts, "")
 }
 
 func (c *APIGatewayCmd) pickAPI(ctx context.Context, s *Session) (cloud.API, error) {

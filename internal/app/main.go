@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -195,7 +197,8 @@ func (s *Session) OpenTunnel(ctx context.Context, target, host string, remotePor
 }
 
 // ServeProxy tunnels to opts.Host:remotePort through target and serves a local HTTP proxy to it until ctx ends.
-func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, proxyPort int, opts proxy.Options) error {
+// A non-empty openPath is opened in the browser once the proxy listens.
+func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, proxyPort int, opts proxy.Options, openPath string) error {
 	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, opts.Host, remotePort)
 	if err != nil {
 		return err
@@ -211,8 +214,13 @@ func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, pro
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	// Listen before logging "ready" so the browser never races the server.
+	ln, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("proxy server: %w", err)
+	}
 	srvDone := make(chan error, 1)
-	go func() { srvDone <- srv.ListenAndServe() }()
+	go func() { srvDone <- srv.Serve(ln) }()
 
 	log := zerolog.Ctx(ctx)
 	kind := "proxy"
@@ -220,6 +228,12 @@ func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, pro
 		kind = "SigV4 proxy (" + opts.Service + ")"
 	}
 	log.Info().Msg(kind + " ready on http://" + srv.Addr + " — Ctrl+C to stop")
+	if openPath != "" {
+		openURL := "http://" + srv.Addr + openPath
+		if err := openBrowser(openURL); err != nil {
+			log.Warn().Err(err).Msg("cannot open browser, visit " + openURL)
+		}
+	}
 
 	select {
 	case <-ctx.Done():
@@ -234,6 +248,20 @@ func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, pro
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
 	return err
+}
+
+// openBrowser opens url in the default browser without waiting for it.
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
 }
 
 // WaitTunnel blocks until ctx ends or the tunnel closes. When token is set it prints a fresh IAM token now and

@@ -75,7 +75,7 @@ func (c *EKSCmd) Run(ctx context.Context, s *Session) error {
 		BearerToken: tokens.Get,
 		Host:        host,
 		RootCAs:     roots,
-	})
+	}, "")
 }
 
 func (c *EKSCmd) pickCluster(ctx context.Context, s *Session) (cloud.Cluster, error) {

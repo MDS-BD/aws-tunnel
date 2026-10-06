@@ -14,6 +14,7 @@ import (
 const domainKeyPrefix = "domain:"
 
 type OpensearchCmd struct {
+	Open       bool   `env:"AWS_TUNNEL_OPENSEARCH_OPEN" help:"Open OpenSearch Dashboards in the browser once the proxy is ready."`
 	Host       string `env:"AWS_TUNNEL_OPENSEARCH_HOST" help:"OpenSearch endpoint; skips the domain picker."`
 	ProxyPort  int    `default:"8080" env:"AWS_TUNNEL_PROXY_PORT" help:"Port of the SigV4 signing proxy."`
 	RemotePort int    `default:"443" help:"Port of the OpenSearch endpoint." name:"remote"`
@@ -30,7 +31,11 @@ func (c *OpensearchCmd) Run(ctx context.Context, s *Session) error {
 	}
 	s.SaveCache(ctx)
 
-	return s.ServeProxy(ctx, target, c.RemotePort, c.ProxyPort, proxy.Options{Host: host, Service: "es"})
+	openPath := ""
+	if c.Open {
+		openPath = "/_dashboards"
+	}
+	return s.ServeProxy(ctx, target, c.RemotePort, c.ProxyPort, proxy.Options{Host: host, Service: "es"}, openPath)
 }
 
 func (c *OpensearchCmd) pickDomain(ctx context.Context, s *Session) (string, error) {

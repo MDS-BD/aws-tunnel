@@ -6,6 +6,7 @@ no `session-manager-plugin`, no Docker, no `fzf`.
 ```sh
 go build -o bin/aws-tunnel ./cmd
 aws-tunnel opensearch           # pick domain, pick SSM instance, proxy on http://localhost:8080
+aws-tunnel opensearch --open    # same, then open http://localhost:8080/_dashboards in the browser
 aws-tunnel -r opensearch        # ignore cache, reload domains and instances from AWS
 aws-tunnel -t i-0123456789abcdef0 opensearch --host vpc-x.eu-west-1.es.amazonaws.com
 aws-tunnel rds                  # pick database + instance, print a psql/mysql command
