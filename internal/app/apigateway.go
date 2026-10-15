@@ -17,7 +17,7 @@ const apiKeyPrefix = "apigateway:"
 
 type APIGatewayCmd struct {
 	API       string `env:"AWS_TUNNEL_API" help:"REST API ID; skips the API picker (requires --stage)." name:"api"`
-	ProxyPort int    `default:"8080" env:"AWS_TUNNEL_PROXY_PORT" help:"Port of the local proxy."`
+	ProxyPort int    `default:"8080" env:"AWS_TUNNEL_PROXY_PORT" help:"Base port of the local proxy; the next free one is used when busy."`
 	Sign      bool   `help:"SigV4-sign requests, for APIs using AWS_IAM authorization."`
 	Stage     string `help:"Stage to call; requests to http://localhost:PORT/x go to /STAGE/x."`
 }
@@ -37,7 +37,11 @@ func (c *APIGatewayCmd) Run(ctx context.Context, s *Session) error {
 	if c.Sign {
 		opts.Service = "execute-api"
 	}
-	return s.ServeProxy(ctx, target, 443, c.ProxyPort, opts, "")
+	ln, err := ListenFrom(c.ProxyPort)
+	if err != nil {
+		return err
+	}
+	return s.ServeProxy(ctx, target, 443, ln, opts, "")
 }
 
 func (c *APIGatewayCmd) pickAPI(ctx context.Context, s *Session) (cloud.API, error) {

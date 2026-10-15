@@ -32,6 +32,9 @@ deprecation warning.
 
 Global flags (`--region`, `--profile`, `-t`, `-r`, `--local`) apply to every subcommand; run `aws-tunnel <command> --help` for the rest.
 
+Local ports are stable: each command starts from a known base port and takes the first free one after it when busy
+(up to 100 ports later). `opensearch`, `apigateway` and `tunnel` use 8080, `eks` 8443, `rds` 50505, `elasticache` 56379. Override the base with `--proxy-port` / `--local-base`, or pin an exact port with `--local`.
+
 ## Services
 
 | Command | Lists | Auth |

@@ -31,13 +31,15 @@ const (
 	// IAM auth tokens are valid for 15 minutes: print a fresh one well before that.
 	iamTokenRefresh   = 10 * time.Minute
 	instanceKeyPrefix = "instance:"
-	shutdownTimeout   = 5 * time.Second
+	// portScanRange is how many ports after a base port are tried before giving up.
+	portScanRange   = 100
+	shutdownTimeout = 5 * time.Second
 )
 
 // Globals are the flags shared by every subcommand.
 type Globals struct {
 	CacheTTL  time.Duration    `default:"24h" env:"AWS_TUNNEL_CACHE_TTL" help:"How long cached AWS listings stay fresh."`
-	LocalPort int              `default:"0" env:"AWS_TUNNEL_LOCAL_PORT" help:"Local port of the SSM tunnel (0 = random)." name:"local"`
+	LocalPort int              `default:"0" env:"AWS_TUNNEL_LOCAL_PORT" help:"Exact local port of the SSM tunnel, failing when busy (0 = per-command base port, or random)." name:"local"`
 	Profile   string           `env:"AWS_PROFILE" help:"AWS shared config profile."`
 	Refresh   bool             `help:"Ignore the cache and fetch listings from AWS." short:"r"`
 	Region    string           `default:"eu-west-1" env:"AWS_REGION" help:"AWS region."`
@@ -172,10 +174,11 @@ func (s *Session) PickTarget(ctx context.Context) (string, error) {
 }
 
 // OpenTunnel forwards a local port to host:remotePort through target, returning the local address.
-func (s *Session) OpenTunnel(ctx context.Context, target, host string, remotePort int) (string, <-chan error, error) {
+// --local wins when set; otherwise the port is the first free one from basePort, or random when basePort is 0.
+func (s *Session) OpenTunnel(ctx context.Context, target, host string, remotePort, basePort int) (string, <-chan error, error) {
 	localPort := s.LocalPort
 	if localPort == 0 {
-		port, err := freePort()
+		port, err := freePortFrom(basePort)
 		if err != nil {
 			return "", nil, err
 		}
@@ -196,10 +199,11 @@ func (s *Session) OpenTunnel(ctx context.Context, target, host string, remotePor
 	return net.JoinHostPort("localhost", strconv.Itoa(localPort)), done, nil
 }
 
-// ServeProxy tunnels to opts.Host:remotePort through target and serves a local HTTP proxy to it until ctx ends.
+// ServeProxy tunnels to opts.Host:remotePort through target and serves a local HTTP proxy on ln until ctx ends.
 // A non-empty openPath is opened in the browser once the proxy listens.
-func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, proxyPort int, opts proxy.Options, openPath string) error {
-	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, opts.Host, remotePort)
+func (s *Session) ServeProxy(ctx context.Context, target string, remotePort int, ln net.Listener, opts proxy.Options, openPath string) error {
+	defer ln.Close()
+	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, opts.Host, remotePort, 0)
 	if err != nil {
 		return err
 	}
@@ -209,15 +213,11 @@ func (s *Session) ServeProxy(ctx context.Context, target string, remotePort, pro
 	if err != nil {
 		return err
 	}
+	// The caller listens before the tunnel opens, so the port is known early and the browser never races the server.
 	srv := &http.Server{
-		Addr:              net.JoinHostPort("localhost", strconv.Itoa(proxyPort)),
+		Addr:              ln.Addr().String(),
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
-	}
-	// Listen before logging "ready" so the browser never races the server.
-	ln, err := net.Listen("tcp", srv.Addr)
-	if err != nil {
-		return fmt.Errorf("proxy server: %w", err)
 	}
 	srvDone := make(chan error, 1)
 	go func() { srvDone <- srv.Serve(ln) }()
@@ -314,11 +314,33 @@ func header(title string, fetchedAt time.Time) string {
 	return title + " — cached " + fetchedAt.Format(time.DateTime) + ", --refresh to reload (Esc to cancel)"
 }
 
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "localhost:0")
+// ListenFrom listens on the first free localhost port in [base, base+portScanRange), or a random one when base is 0.
+func ListenFrom(base int) (net.Listener, error) {
+	if base == 0 {
+		l, err := net.Listen("tcp", "localhost:0")
+		if err != nil {
+			return nil, fmt.Errorf("find free port: %w", err)
+		}
+		return l, nil
+	}
+	for port := base; port < base+portScanRange && port <= 65535; port++ {
+		if l, err := net.Listen("tcp", net.JoinHostPort("localhost", strconv.Itoa(port))); err == nil {
+			return l, nil
+		}
+	}
+	return nil, fmt.Errorf("no free port in %d-%d", base, base+portScanRange-1)
+}
+
+// freePortFrom returns the port ListenFrom would pick, released so the SSM client can bind it.
+func freePortFrom(base int) (int, error) {
+	l, err := ListenFrom(base)
 	if err != nil {
-		return 0, fmt.Errorf("find free port: %w", err)
+		return 0, err
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func listenPort(l net.Listener) int {
+	return l.Addr().(*net.TCPAddr).Port
 }

@@ -18,10 +18,11 @@ import (
 const databaseKeyPrefix = "rds:"
 
 type RDSCmd struct {
-	Host string `env:"AWS_TUNNEL_RDS_HOST" help:"Database endpoint; skips the database picker (requires --port)."`
-	IAM  bool   `help:"Print an IAM auth token to use as password, refreshed every 10 minutes." name:"iam"`
-	Port int    `help:"Database port; defaults to the one RDS reports."`
-	User string `help:"Database user; defaults to the master user."`
+	Host      string `env:"AWS_TUNNEL_RDS_HOST" help:"Database endpoint; skips the database picker (requires --port)."`
+	IAM       bool   `help:"Print an IAM auth token to use as password, refreshed every 10 minutes." name:"iam"`
+	Port      int    `help:"Database port; defaults to the one RDS reports."`
+	LocalPort int    `default:"50505" env:"AWS_TUNNEL_RDS_LOCAL_PORT" help:"Base local port; the next free one is used when busy. --local overrides it." name:"local-base"`
+	User      string `help:"Database user; defaults to the master user."`
 }
 
 func (c *RDSCmd) Run(ctx context.Context, s *Session) error {
@@ -35,7 +36,7 @@ func (c *RDSCmd) Run(ctx context.Context, s *Session) error {
 	}
 	s.SaveCache(ctx)
 
-	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, db.Host, db.Port)
+	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, db.Host, db.Port, c.LocalPort)
 	if err != nil {
 		return err
 	}

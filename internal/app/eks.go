@@ -27,7 +27,7 @@ const clusterKeyPrefix = "eks:"
 
 type EKSCmd struct {
 	Cluster   string `env:"AWS_TUNNEL_EKS_CLUSTER" help:"Cluster name; skips the cluster picker."`
-	ProxyPort int    `default:"8443" env:"AWS_TUNNEL_EKS_PROXY_PORT" help:"Port of the local API server proxy."`
+	ProxyPort int    `default:"8443" env:"AWS_TUNNEL_EKS_PROXY_PORT" help:"Base port of the local API server proxy; the next free one is used when busy."`
 }
 
 func (c *EKSCmd) Run(ctx context.Context, s *Session) error {
@@ -57,8 +57,13 @@ func (c *EKSCmd) Run(ctx context.Context, s *Session) error {
 		return err
 	}
 
-	kubeconfig, err := writeKubeconfig(cluster.Name, c.ProxyPort)
+	ln, err := ListenFrom(c.ProxyPort)
 	if err != nil {
+		return err
+	}
+	kubeconfig, err := writeKubeconfig(cluster.Name, listenPort(ln))
+	if err != nil {
+		_ = ln.Close()
 		return err
 	}
 	defer os.Remove(kubeconfig)
@@ -71,7 +76,7 @@ func (c *EKSCmd) Run(ctx context.Context, s *Session) error {
 
 	// The proxy verifies the API server against the cluster CA and adds the IAM token: kubectl talks plain HTTP
 	// to localhost and needs no aws CLI or exec plugin.
-	return s.ServeProxy(ctx, target, 443, c.ProxyPort, proxy.Options{
+	return s.ServeProxy(ctx, target, 443, ln, proxy.Options{
 		BearerToken: tokens.Get,
 		Host:        host,
 		RootCAs:     roots,

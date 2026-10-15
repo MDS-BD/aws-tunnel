@@ -14,8 +14,9 @@ import (
 const cacheKeyPrefix = "elasticache:"
 
 type ElastiCacheCmd struct {
-	IAM  bool   `help:"Print an IAM auth token to use as password, refreshed every 10 minutes." name:"iam"`
-	User string `default:"default" help:"Cache user (RBAC / IAM-enabled user ID)."`
+	IAM       bool   `help:"Print an IAM auth token to use as password, refreshed every 10 minutes." name:"iam"`
+	LocalPort int    `default:"56379" env:"AWS_TUNNEL_ELASTICACHE_LOCAL_PORT" help:"Base local port; the next free one is used when busy. --local overrides it." name:"local-base"`
+	User      string `default:"default" help:"Cache user (RBAC / IAM-enabled user ID)."`
 }
 
 func (c *ElastiCacheCmd) Run(ctx context.Context, s *Session) error {
@@ -35,7 +36,7 @@ func (c *ElastiCacheCmd) Run(ctx context.Context, s *Session) error {
 			"use a client without cluster support (e.g. redis-cli without -c) for single-slot commands")
 	}
 
-	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, ec.Host, ec.Port)
+	tunnelAddr, tunnelDone, err := s.OpenTunnel(ctx, target, ec.Host, ec.Port, c.LocalPort)
 	if err != nil {
 		return err
 	}
