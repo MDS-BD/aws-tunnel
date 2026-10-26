@@ -90,6 +90,8 @@ go test ./... -cover
 Push a `v*` tag: the `release` workflow runs GoReleaser, which builds darwin/linux × amd64/arm64, publishes the GitHub
 release and pushes the cask to [MDS-BD/homebrew-tools](https://github.com/MDS-BD/homebrew-tools).
 
+Release builds use the exact Go 1.27.3 compiler/runtime, checked before GoReleaser runs; dependency resolution is read-only and pinned by `go.mod`/`go.sum`. Every release archive contains this project's MIT license, `THIRD-PARTY-NOTICES`, and the complete audited `LICENSES/_third-party/` and Go license bundle in `LICENSES/_go/`, including the unmodified HashiCorp `go-version` v1.9.0 source and MPL-2.0 license. See those files for dependency inventory, attribution and source availability. When changing dependencies, Go toolchain or release targets, regenerate and review the cross-target license inventory and update the bundled texts before releasing.
+
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```

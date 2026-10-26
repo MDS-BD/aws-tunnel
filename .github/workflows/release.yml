@@ -18,7 +18,8 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: '1.27.3'
+          check-latest: false
 
       # Short-lived token from the org GitHub App, allowed to push the cask to the tap repo only.
       - uses: actions/create-github-app-token@v3
@@ -36,6 +37,7 @@ jobs:
           version: "~> v2"
           args: release --clean
         env:
+          GOTOOLCHAIN: local
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
