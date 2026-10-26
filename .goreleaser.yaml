@@ -5,7 +5,6 @@ project_name: aws-tunnel
 
 before:
   hooks:
-    - sh -c 'test "$(GOTOOLCHAIN=local go env GOVERSION)" = go1.27.3 || { echo "release requires Go 1.27.3" >&2; exit 1; }'
     - go mod verify
     - go test -mod=readonly ./...
 
@@ -15,7 +14,6 @@ builds:
     binary: aws-tunnel
     env:
       - CGO_ENABLED=0
-      - GOTOOLCHAIN=local
       - GOFLAGS=-mod=readonly
     goos:
       - darwin
