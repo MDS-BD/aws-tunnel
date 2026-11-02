@@ -125,4 +125,4 @@ The tap is pushed with a GitHub App instead of a personal token: tokens last one
 
 Without the `MACOS_*` secrets the darwin binaries ship unsigned; the cask strips the quarantine flag on install.
 
-Local dry run: `goreleaser release --snapshot --clean --skip=publish`.
+Local dry run (GoReleaser 2.19 or later, required for the Homebrew cask's `install_steps` hook): `goreleaser release --snapshot --clean --skip=publish`.
