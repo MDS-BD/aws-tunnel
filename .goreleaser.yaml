@@ -128,7 +128,7 @@ homebrew_casks:
     # Unsigned builds (no Apple secrets) get quarantined by Gatekeeper: strip the flag. Harmless once notarized.
     hooks:
       post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aws-tunnel"]
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/aws-tunnel"]
           end
