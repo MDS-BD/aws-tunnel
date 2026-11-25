@@ -1,10 +1,12 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -84,6 +86,18 @@ type signingTransport struct {
 }
 
 func (t *signingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// The signer hashes the whole body anyway; buffer it once and expose GetBody so the HTTP/2
+	// transport can replay the request when the server closes the connection with GOAWAY.
+	if r.Body != nil && r.Body != http.NoBody && r.GetBody == nil {
+		body, err := io.ReadAll(r.Body)
+		_ = r.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read request body: %w", err)
+		}
+		r.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+		r.Body, _ = r.GetBody()
+		r.ContentLength = int64(len(body))
+	}
 	if err := t.signer.SignRequest(r); err != nil {
 		return nil, fmt.Errorf("sign request: %w", err)
 	}
